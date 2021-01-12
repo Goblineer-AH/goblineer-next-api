@@ -2,11 +2,11 @@ using System.Collections.Generic;
 
 namespace GoblineerNextApi.Models
 {
-    public class ItemPriceData
+    public record ItemPriceData
     {
-        public Item Item { get; set; } = new Item();
-        public int Quantity { get; set; }
-        public double Marketvalue { get; set; }
-        public List<Auction> Auctions { get; set; } = new List<Auction>();
+        public Item Item { get; init; } = new ();
+        public int Quantity { get; init; }
+        public double Marketvalue { get; init; }
+        public IEnumerable<Auction> Auctions { get; init; } = new List<Auction>();
     }
 }

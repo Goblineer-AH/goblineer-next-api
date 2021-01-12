@@ -29,33 +29,53 @@ namespace GoblineerNextApi.Controllers
         }
         
         [HttpGet]
-        [Route("prices/{internalItemId}")]
-        public async Task<ActionResult<ItemPriceData>> GetItemPricesById(int internalItemId, int serverId)
+        [Route("prices/{itemId}")]
+        public async Task<ActionResult<IEnumerable<ItemPriceData>>> GetItemPricesById(int itemId, int serverId)
         {
-            var item = await DbService.GetItemByInternalId(internalItemId);
-            (int quantity, double marketvalue) = await DbService.GetMarketvalueByInternalItemId(serverId, internalItemId);
-            var auctions = await DbService.GetAuctionsByItemId(serverId, internalItemId);
+            var items = await DbService.GetItemsById(itemId);
 
-            return Ok(new ItemPriceData 
+            List<ItemPriceData> prices = new();
+            foreach(Item item in items)
             {
-                Item = item,
-                Quantity = quantity,
-                Marketvalue = marketvalue,
-                Auctions = auctions,
-            });
+                try {
+                    var marketvalue = await DbService.GetMarketvalueByInternalItemId(serverId, item.InternalId);
+                    var auctions = await DbService.GetAuctionsByInternalItemId(serverId, item.InternalId);
+                    prices.Add(new ItemPriceData {
+                        Item = item,
+                        Quantity = marketvalue.Quantity,
+                        Marketvalue = marketvalue.Marketvalue,
+                        Auctions = auctions,
+                    });
+                } catch(ItemNotFoundException) {
+                    // Do nothing, if the item is not present on that server it will not have a price
+                }
+            }
+            
+            return Ok(prices);
         }
 
         [HttpGet]
         [Route("glance_price/{itemId}")]
         public async Task<ActionResult<ItemPriceData>> GetItemGlanceById(int itemId, int serverId)
         {
-            (int quantity, double marketvalue) = await DbService.GetMarketvalueByItemId(serverId, itemId);
-
-            return Ok(new 
+            // using the first item as a glance target
+            var items = await DbService.GetItemsById(itemId);
+            foreach(var item in items)
             {
-                Quantity = quantity,
-                Marketvalue = marketvalue,
-            });
+                try {
+                    (int quantity, double marketvalue) = await DbService.GetMarketvalueByInternalItemId(serverId, item.InternalId);
+
+                    return Ok(new 
+                    {
+                        Quantity = quantity,
+                        Marketvalue = marketvalue,
+                    });
+                } catch(ItemNotFoundException) {
+                    // This item was not found on this server, trying the next item
+                }
+            }
+
+            return BadRequest($"Item '{itemId}' not found.");
         }
     }
 }

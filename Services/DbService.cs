@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using GoblineerNextApi.Models;
 using Npgsql;
@@ -21,7 +22,7 @@ namespace GoblineerNextApi.Services
             return connection;
         }
 
-        private Item ReadItem(NpgsqlDataReader reader, int id)
+        private Item ReadItem(NpgsqlDataReader reader)
         {
             var context = reader.GetInt32(0);
             var modifiers = reader.GetFieldValue<int[]>(1);
@@ -33,20 +34,20 @@ namespace GoblineerNextApi.Services
             var internalId = reader.GetInt32(7);
             var itemId = reader.GetInt32(8);
 
-            Func<int,int?> checkNullInt = (int n) => n == -1 ? (int?)null : n;
-            Func<int[],int[]?> checkNullArray = (int[] arr) => arr.Length == 0 ? (int[]?)null : arr;
+            int? checkNullInt(int n) => n == -1 ? (int?)null : n;
+            int[]? checkNullArray(int[] arr) => arr.Length == 0 ? (int[]?)null : arr;
 
             return new Item
             {
-                Id = itemId,
-                InternalId = internalId,
-                Context = checkNullInt(context),
-                PetBreedId = checkNullInt(petBreedId),
-                PetLevel = checkNullInt(petLevel),
+                Id           = itemId,
+                InternalId   = internalId,
+                Context      = checkNullInt(context),
+                PetBreedId   = checkNullInt(petBreedId),
+                PetLevel     = checkNullInt(petLevel),
                 PetQualityId = checkNullInt(petQualityId),
                 PetSpeciesId = checkNullInt(petSpeciesId),
-                Modifiers = checkNullArray(modifiers),
-                Bonuses = checkNullArray(bonuses),
+                Modifiers    = checkNullArray(modifiers),
+                Bonuses      = checkNullArray(bonuses),
             };
         }
 
@@ -67,7 +68,7 @@ namespace GoblineerNextApi.Services
             var items = new List<Item>();
             while(await reader.ReadAsync())
             {
-                var item = ReadItem(reader, id);
+                var item = ReadItem(reader);
                 items.Add(item);
             }
 
@@ -91,26 +92,26 @@ namespace GoblineerNextApi.Services
             var items = new List<Item>();
             if(await reader.ReadAsync())
             {
-                var item = ReadItem(reader, id);
+                var item = ReadItem(reader);
                 return item;
             }
 
             throw new ItemNotFoundException();
         }
 
-        public async Task<(int, double)> GetMarketvalueByInternalItemId(int serverId, int itemId)
+        public async Task<(int Quantity, double Marketvalue)> GetMarketvalueByInternalItemId(int serverId, int internalItemId)
         {
             var query = @"
                 SELECT quantity, marketvalue FROM marketvalues
-                WHERE serverid = @serverId
-                  AND itemid = @itemId;
+                WHERE serverid = @serverId 
+                  AND itemid = @internalItemId;
             ";
 
             await using var connection = await OpenNewConnection();
             await using var cmd = new NpgsqlCommand(query, connection);
 
             cmd.Parameters.AddWithValue("serverId", serverId);
-            cmd.Parameters.AddWithValue("itemId", itemId);
+            cmd.Parameters.AddWithValue("internalItemId", internalItemId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
@@ -125,44 +126,12 @@ namespace GoblineerNextApi.Services
             throw new ItemNotFoundException();
         }
 
-        public async Task<(int, double)> GetMarketvalueByItemId(int serverId, int itemId)
+        public async Task<IEnumerable<Auction>> GetAuctionsByInternalItemId(int serverId, int internalItemId)
         {
             var query = @"
-                SELECT quantity, marketvalue FROM marketvalues
+                SELECT bid, price, quantity, timeleft FROM auctions a join items i on i.id = a.itemid
                 WHERE serverid = @serverId
-                  AND itemid in (
-                      SELECT id FROM items
-                      WHERE originalitemid = @itemId
-                  )
-                ORDER BY quantity DESC
-                LIMIT 1;
-            ";
-
-            await using var connection = await OpenNewConnection();
-            await using var cmd = new NpgsqlCommand(query, connection);
-
-            cmd.Parameters.AddWithValue("serverId", serverId);
-            cmd.Parameters.AddWithValue("itemId", itemId);
-
-            await using var reader = await cmd.ExecuteReaderAsync();
-
-            if(await reader.ReadAsync())
-            {
-                var quantity = reader.GetInt32(0);
-                var marketvalue = reader.GetDouble(1);
-
-                return (quantity, marketvalue);
-            }
-
-            throw new ItemNotFoundException();
-        }
-
-        public async Task<List<Auction>> GetAuctionsByItemId(int serverId, int itemId)
-        {
-            var query = @"
-                SELECT bid, price, quantity, timeleft FROM auctions
-                WHERE serverid = @serverId
-                  AND itemid = @itemId
+                  AND i.id = @internalItemId
                 ORDER BY price ASC;
             ";
 
@@ -170,11 +139,11 @@ namespace GoblineerNextApi.Services
             await using var cmd = new NpgsqlCommand(query, connection);
 
             cmd.Parameters.AddWithValue("serverId", serverId);
-            cmd.Parameters.AddWithValue("itemId", itemId);
+            cmd.Parameters.AddWithValue("internalItemId", internalItemId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
-            var auctions = new List<Auction>();
+            List<Auction> auctions = new();
             while(await reader.ReadAsync())
             {
                 var bid = reader.GetInt32(0);
@@ -192,14 +161,14 @@ namespace GoblineerNextApi.Services
 
                 auctions.Add(auction);
             }
-
+          
             return auctions;
         }
 
         public async Task<List<Server>> GetServers()
         {
             var query = @"
-                SELECT connectedrealmid, region, realmname FROM servers;
+                SELECT id, region, realmname FROM realms;
             ";
 
             await using var connection = await OpenNewConnection();
