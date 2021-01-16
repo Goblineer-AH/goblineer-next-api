@@ -37,13 +37,15 @@ jobs:
     steps:
       - name: Setting the docker tag
         run: |
-          if [ "$BRANCH" == "refs/heads/master" ]; then
-            echo "docker_tag=$BASE_TAG:latest" >> $GITHUB_ENV
-          elif [ "$BRANCH" == "refs/heads/staging" ]; then
-            echo "docker_tag=$BASE_TAG:staging" >> $GITHUB_ENV
-          else
-            echo "docker_tag=$BASE_TAG:beta" >> $GITHUB_ENV
-          fi
+            if [[ "$BRANCH" == "refs/heads/master" ]]; then
+              DOCKER_TAG="$BASE_TAG:latest"
+            elif [[ "$BRANCH" == "refs/heads/staging" ]]; then
+              DOCKER_TAG="$BASE_TAG:staging"
+            else
+              DOCKER_TAG="$BASE_TAG:beta"
+            fi
+            echo "Docker tag will be '$DOCKER_TAG'"
+            echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
         env:
           BRANCH: ${{ github.ref }}
           BASE_TAG: goblineer/goblineer-next-api
@@ -74,7 +76,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: $DOCKER_TAG
+          tags: ${{ env.DOCKER_TAG }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
           
