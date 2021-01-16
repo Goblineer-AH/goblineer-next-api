@@ -1,4 +1,4 @@
-# Goblineer Next Updater ![.NET](https://github.com/Goblineer-AH/goblineer-next-api/workflows/.NET/badge.svg)
+# Goblineer Next API ![.NET](https://github.com/Goblineer-AH/goblineer-next-api/workflows/.NET/badge.svg)
 
 Backend Web API for Goblineer. Fetches the data from the database and serves it to the frontend.
 
