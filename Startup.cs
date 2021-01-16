@@ -18,9 +18,15 @@ namespace GoblineerNextApi
     {
         private readonly string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
-        public Startup(IConfiguration configuration)
+        public Startup(IHostEnvironment env)
         {
-            Configuration = configuration;
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(env.ContentRootPath)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
+                .AddEnvironmentVariables();
+
+            Configuration = builder.Build();
         }
 
         public IConfiguration Configuration { get; }
@@ -28,7 +34,12 @@ namespace GoblineerNextApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            var connString = Configuration.GetSection("ConnectionString").Get<string>();
+            var host = Configuration.GetValue<string>("DB_HOST");
+            var username = Configuration.GetValue<string>("DB_USERNAME");
+            var password = Configuration.GetValue<string>("DB_PASSWORD");
+            var database = Configuration.GetValue<string>("DB_DATABASE");
+
+            var connString = $"Host={host};Username={username};Password={password};Database={database};Pooling=true;";
             services.AddTransient<DbService>(x => new DbService(connString));
 
             services.AddCors(options =>
@@ -36,8 +47,8 @@ namespace GoblineerNextApi
                 options.AddPolicy(name: MyAllowSpecificOrigins,
                                 builder =>
                                 {
-                                    builder.WithOrigins("http://localhost:3000");
-                                    builder.WithOrigins("http://localhost:3001");
+                                    var urls = Configuration.GetValue<string>("ALLOWED_FRONTEND_URLS").Split(',');
+                                    builder.WithOrigins(urls);
                                 });
             });
 
